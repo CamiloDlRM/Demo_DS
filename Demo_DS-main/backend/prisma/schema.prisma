@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model GlobalTankConfig {
+  id                    Int      @id
+  siteName              String
+  sampleRateSeconds     Int
+  alertThresholdPercent Float
+  calibrationOffset     Float
+  updatedAt             DateTime @updatedAt
+  createdAt             DateTime @default(now())
+}
+
+model Tank {
+  id             Int            @id @default(autoincrement())
+  name           String
+  capacityLiters Float
+  geometry       String?
+  location       String?
+  createdAt      DateTime       @default(now())
+
+  threshold TankThreshold?
+  alerts    Alert[]
+}
+
+model TankThreshold {
+  id            Int      @id @default(autoincrement())
+  tankId        Int      @unique
+  minLevel      Float
+  criticalMin   Float
+  maxLevel      Float
+  leakThreshold Float
+  updatedAt     DateTime @updatedAt
+
+  tank Tank @relation(fields: [tankId], references: [id])
+}
+
+model Alert {
+  id           Int      @id @default(autoincrement())
+  tankId       Int
+  alertType    String
+  currentLevel Float
+  percentage   Float
+  threshold    Float
+  message      String
+  resolved     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  resolvedAt   DateTime?
+
+  tank Tank @relation(fields: [tankId], references: [id])
+}

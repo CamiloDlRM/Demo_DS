@@ -1,0 +1,43 @@
+version: '3.9'
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: tanques-db
+    environment:
+      POSTGRES_DB: tanques
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d tanques']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+    container_name: tanques-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/tanques?schema=public
+    ports:
+      - '3000:3000'
+
+  front:
+    build:
+      context: ./frontend
+    container_name: tanques-front
+    depends_on:
+      - api
+    ports:
+      - '4173:80'
+
+volumes:
+  postgres_data:
