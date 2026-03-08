@@ -417,6 +417,96 @@ function ObserverPanel() {
   );
 }
 
+function AdapterPanel() {
+  const [sensorType, setSensorType] = useState('ultrasonic');
+  const [tankId, setTankId] = useState('1');
+  const [mockValue, setMockValue] = useState('');
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setResults(null);
+    try {
+      const response = await fetch(`${apiBase}/sensors/simulate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tankId: Number(tankId),
+          sensorType,
+          mockValue: Number(mockValue),
+        }),
+      });
+      if (!response.ok) throw new Error(await parseError(response));
+      const data = await response.json();
+      setResults(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error en simulación');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <section className="card">
+      <h2>Adapter: Simulación de Sensores</h2>
+      <p className="subtitle">
+        {sensorType === 'ultrasonic' 
+          ? '📏 Ultrasónico: mockValue = distancia en cm' 
+          : '📊 Presión: mockValue = presión en Pascales'}
+      </p>
+      <form onSubmit={handleSubmit} className="form">
+        <label>
+          Tipo de sensor
+          <select value={sensorType} onChange={(e) => setSensorType(e.target.value)}>
+            <option value="ultrasonic">Ultrasónico (cm)</option>
+            <option value="pressure">Presión (Pa)</option>
+          </select>
+        </label>
+        <label>
+          ID del Tanque
+          <input
+            type="number"
+            min="1"
+            value={tankId}
+            onChange={(e) => setTankId(e.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Valor simulado
+          <input
+            type="number"
+            step="any"
+            min="0"
+            value={mockValue}
+            onChange={(e) => setMockValue(e.target.value)}
+            required
+          />
+        </label>
+        <button type="submit" disabled={loading}>
+          {loading ? 'Simulando...' : 'Simular lectura'}
+        </button>
+      </form>
+
+      {error && <div className="alert-msg error">{error}</div>}
+      {results && (
+        <div className="result-list">
+          {results.map((event, index) => (
+            <div key={`${event.alertType}-${index}`} className={`result-item ${event.alertType}`}>
+              <strong>{ALERT_ICONS[event.alertType]} {event.alertType}</strong>
+              {event.message}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function App() {
   const [mainTab, setMainTab] = useState('singleton');
 
@@ -424,7 +514,7 @@ export function App() {
     <main className="layout">
       <header className="header">
         <h1>Lecturas y Alertas de Tanques</h1>
-        <p className="subtitle">Integración Singleton + Observer</p>
+        <p className="subtitle">Integración Singleton + Observer + Adapter</p>
       </header>
 
       <div className="tabs main-tabs">
@@ -434,9 +524,12 @@ export function App() {
         <button className={`tab ${mainTab === 'observer' ? 'active' : ''}`} onClick={() => setMainTab('observer')}>
           Observer
         </button>
+        <button className={`tab ${mainTab === 'adapter' ? 'active' : ''}`} onClick={() => setMainTab('adapter')}>
+          Adapter
+        </button>
       </div>
 
-      {mainTab === 'singleton' ? <SingletonPanel /> : <ObserverPanel />}
+      {mainTab === 'singleton' ? <SingletonPanel /> : mainTab === 'observer' ? <ObserverPanel /> : <AdapterPanel />}
     </main>
   );
 }

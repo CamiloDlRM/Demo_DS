@@ -26,6 +26,9 @@ export class RootController {
           'POST /api/setup/thresholds',
           'GET /api/setup/thresholds/:tankId',
         ],
+        ADAPTER:[ 
+          'POST /api/sensors/simulate'
+        ],
       },
     };
   }
