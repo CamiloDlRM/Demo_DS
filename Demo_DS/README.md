@@ -1,9 +1,10 @@
-# Lecturas y Alertas de Tanques – Integración Singleton + Observer
+# Lecturas y Alertas de Tanques – Integración Singleton + Adapter +Observer
 
 Implementación integrada de dos features del mismo proyecto:
 
 - **Singleton (creacional):** configuración global única del sistema (`GlobalTankConfig`).
 - **Observer (comportamiento):** evaluación de lecturas y notificación de alertas por umbrales.
+- **Adapter (Estandarizacíon):** adapata la distintas lecturas de los tipos de sensores a una solo tipo de lectura.
 
 Stack: **NestJS + Prisma + PostgreSQL** (backend) y **React + Vite** (frontend).
 
@@ -30,10 +31,21 @@ Stack: **NestJS + Prisma + PostgreSQL** (backend) y **React + Vite** (frontend).
 - `POST /api/setup/thresholds`
 - `GET /api/setup/thresholds/:tankId`
 
+## ADAPTER 
+- `POST /api/sensors/simulate`
+
 ## Ejecutar con Docker
 
 ```bash
+
 docker compose up --build
+```
+
+# Ejecutar Frontend
+
+```bash
+
+npm run dev
 ```
 
 Servicios:
