@@ -124,14 +124,43 @@ function AlertTable({ alerts, loading, onResolve, resolvingId }) {
 }
 
 function SingletonPanel() {
+  // ---- Configuración global ----
   const [config, setConfig] = useState(defaultConfig);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
+  // ---- Lista de tanques ----
+  const [tanks, setTanks] = useState([]);
+  const [loadingTanks, setLoadingTanks] = useState(false);
+
+  // ---- Creación de tanque ----
+  const [tankForm, setTankForm] = useState({
+    name: '',
+    capacityLiters: '',
+    geometry: '',
+    location: '',
+  });
+  const [tankResult, setTankResult] = useState(null);
+  const [tankLoading, setTankLoading] = useState(false);
+  const [tankError, setTankError] = useState('');
+
+  // ---- Umbrales ----
+  const [thresholdForm, setThresholdForm] = useState({
+    tankId: '',
+    minLevel: '',
+    criticalMin: '',
+    maxLevel: '',
+    leakThreshold: '',
+  });
+  const [thresholdResult, setThresholdResult] = useState(null);
+  const [thresholdLoading, setThresholdLoading] = useState(false);
+  const [thresholdError, setThresholdError] = useState('');
+
   const endpoint = useMemo(() => `${apiBase}/singleton/config`, []);
 
+  // ---- Cargar configuración global ----
   const fetchConfig = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -155,10 +184,27 @@ function SingletonPanel() {
     }
   }, [endpoint]);
 
+  // ---- Cargar lista de tanques ----
+  const fetchTanks = useCallback(async () => {
+    setLoadingTanks(true);
+    try {
+      const response = await fetch(`${apiBase}/setup/tanks`);
+      if (!response.ok) throw new Error(await parseError(response));
+      setTanks(await response.json());
+    } catch (err) {
+      console.error('Error al cargar tanques:', err);
+    } finally {
+      setLoadingTanks(false);
+    }
+  }, []);
+
+  // Cargar datos al montar el componente
   useEffect(() => {
     void fetchConfig();
-  }, [fetchConfig]);
+    void fetchTanks();
+  }, [fetchConfig, fetchTanks]);
 
+  // ---- Actualizar configuración global ----
   const updateConfig = async (event) => {
     event.preventDefault();
     setSaving(true);
@@ -186,6 +232,7 @@ function SingletonPanel() {
     }
   };
 
+  // ---- Resetear configuración global ----
   const resetConfig = async () => {
     setSaving(true);
     setError('');
@@ -200,6 +247,77 @@ function SingletonPanel() {
       setError(resetError instanceof Error ? resetError.message : 'Error al resetear.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ---- Crear tanque ----
+  const handleCreateTank = async (e) => {
+    e.preventDefault();
+    setTankLoading(true);
+    setTankError('');
+    setTankResult(null);
+    try {
+      const response = await fetch(`${apiBase}/setup/tanks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: tankForm.name,
+          capacityLiters: Number(tankForm.capacityLiters),
+          geometry: tankForm.geometry || undefined,
+          location: tankForm.location || undefined,
+        }),
+      });
+      if (!response.ok) throw new Error(await parseError(response));
+      const data = await response.json();
+      setTankResult(data);
+      setTankForm({ name: '', capacityLiters: '', geometry: '', location: '' });
+      await fetchTanks(); // Refrescar lista de tanques
+    } catch (err) {
+      setTankError(err instanceof Error ? err.message : 'Error al crear tanque');
+    } finally {
+      setTankLoading(false);
+    }
+  };
+
+  // ---- Crear/actualizar umbrales ----
+  const handleUpsertThreshold = async (e) => {
+    e.preventDefault();
+    setThresholdLoading(true);
+    setThresholdError('');
+    setThresholdResult(null);
+    try {
+      const response = await fetch(`${apiBase}/setup/thresholds`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tankId: Number(thresholdForm.tankId),
+          minLevel: Number(thresholdForm.minLevel),
+          criticalMin: Number(thresholdForm.criticalMin),
+          maxLevel: Number(thresholdForm.maxLevel),
+          leakThreshold: Number(thresholdForm.leakThreshold),
+        }),
+      });
+      if (!response.ok) throw new Error(await parseError(response));
+      const data = await response.json();
+      setThresholdResult(data);
+    } catch (err) {
+      setThresholdError(err instanceof Error ? err.message : 'Error al guardar umbrales');
+    } finally {
+      setThresholdLoading(false);
+    }
+  };
+
+  // ---- Calcular minLevel desde porcentaje global ----
+  const calculateMinLevel = () => {
+    const tank = tanks.find(t => t.id === Number(thresholdForm.tankId));
+    if (tank && config.alertThresholdPercent) {
+      const calculatedMin = (config.alertThresholdPercent / 100) * tank.capacityLiters;
+      setThresholdForm({
+        ...thresholdForm,
+        minLevel: calculatedMin.toFixed(1),
+      });
+    } else {
+      alert('Selecciona un tanque y asegúrate de tener la configuración global cargada.');
     }
   };
 
@@ -259,6 +377,137 @@ function SingletonPanel() {
       {loading && <p className="hint">Cargando configuración...</p>}
       {message && <p className="success">{message}</p>}
       {error && <p className="error">{error}</p>}
+
+      <hr className="separator" />
+
+      <h3>📦 Crear Tanque</h3>
+      <form onSubmit={handleCreateTank} className="form">
+        <label>
+          Nombre
+          <input
+            type="text"
+            value={tankForm.name}
+            onChange={(e) => setTankForm({ ...tankForm, name: e.target.value })}
+            required
+          />
+        </label>
+        <label>
+          Capacidad (litros)
+          <input
+            type="number"
+            min="1"
+            step="0.1"
+            value={tankForm.capacityLiters}
+            onChange={(e) => setTankForm({ ...tankForm, capacityLiters: e.target.value })}
+            required
+          />
+        </label>
+        <label>
+          Geometría (ej. "height:250")
+          <input
+            type="text"
+            value={tankForm.geometry}
+            onChange={(e) => setTankForm({ ...tankForm, geometry: e.target.value })}
+            placeholder="height:250"
+          />
+        </label>
+        <button type="submit" disabled={tankLoading}>
+          {tankLoading ? 'Creando...' : 'Crear Tanque'}
+        </button>
+      </form>
+      {tankError && <p className="error">{tankError}</p>}
+      {tankResult && (
+        <div className="result-item success">
+          <strong>✅ Tanque creado:</strong>
+          <pre>{JSON.stringify(tankResult, null, 2)}</pre>
+        </div>
+      )}
+
+      <hr className="separator" />
+
+      <h3>⚙️ Configurar Umbrales (Thresholds)</h3>
+      <form onSubmit={handleUpsertThreshold} className="form">
+        <label>
+          Tanque
+          <select
+            value={thresholdForm.tankId}
+            onChange={(e) => setThresholdForm({ ...thresholdForm, tankId: e.target.value })}
+            required
+          >
+            <option value="">Seleccione un tanque</option>
+            {tanks.map(tank => (
+              <option key={tank.id} value={tank.id}>
+                {tank.name} (ID: {tank.id}, Cap: {tank.capacityLiters}L)
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="actions" style={{ marginBottom: '10px' }}>
+          <button
+            type="button"
+            className="ghost"
+            onClick={calculateMinLevel}
+          >
+            📐 Calcular minLevel desde % global ({config.alertThresholdPercent}%)
+          </button>
+        </div>
+
+        <label>
+          Nivel mínimo (minLevel)
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            value={thresholdForm.minLevel}
+            onChange={(e) => setThresholdForm({ ...thresholdForm, minLevel: e.target.value })}
+            required
+          />
+        </label>
+        <label>
+          Nivel crítico (criticalMin)
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            value={thresholdForm.criticalMin}
+            onChange={(e) => setThresholdForm({ ...thresholdForm, criticalMin: e.target.value })}
+            required
+          />
+        </label>
+        <label>
+          Nivel máximo (maxLevel)
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            value={thresholdForm.maxLevel}
+            onChange={(e) => setThresholdForm({ ...thresholdForm, maxLevel: e.target.value })}
+            required
+          />
+        </label>
+        <label>
+          Umbral de fuga (L/min)
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            value={thresholdForm.leakThreshold}
+            onChange={(e) => setThresholdForm({ ...thresholdForm, leakThreshold: e.target.value })}
+            required
+          />
+        </label>
+        <button type="submit" disabled={thresholdLoading}>
+          {thresholdLoading ? 'Guardando...' : 'Guardar Umbrales'}
+        </button>
+      </form>
+      {thresholdError && <p className="error">{thresholdError}</p>}
+      {thresholdResult && (
+        <div className="result-item success">
+          <strong>✅ Umbrales guardados:</strong>
+          <pre>{JSON.stringify(thresholdResult, null, 2)}</pre>
+        </div>
+      )}
     </section>
   );
 }
